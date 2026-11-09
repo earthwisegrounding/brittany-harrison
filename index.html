@@ -33,17 +33,18 @@
     pointer-events:none;transition:opacity .6s ease;z-index:5;}
 
   .ltr{
-    position:absolute;top:0;left:0;will-change:transform;cursor:grab;
+    position:absolute;top:0;left:0;will-change:transform;cursor:grab;opacity:0;
     font-family:'Great Vibes',cursive;line-height:1;font-size:var(--fs);
     background:linear-gradient(120deg,var(--gold),var(--rose) 40%,var(--violet) 70%,var(--cyan));
     background-size:260% 260%;-webkit-background-clip:text;background-clip:text;color:transparent;
-    filter:drop-shadow(0 5px 14px rgba(169,123,255,.45)) drop-shadow(0 0 22px rgba(255,126,179,.35));
-    animation:sheen 7s ease-in-out infinite;touch-action:none;padding:0 .02em;
+    filter:drop-shadow(0 4px 10px rgba(12,8,24,.9)) drop-shadow(0 0 16px rgba(255,126,179,.35));
+    animation:sheen 7s ease-in-out infinite;touch-action:none;transition:opacity .4s ease;
   }
-  .ltr.drag{cursor:grabbing;filter:drop-shadow(0 9px 24px rgba(255,217,122,.65)) drop-shadow(0 0 38px rgba(255,126,179,.6));}
+  .ltr.ready{opacity:1;}
+  .ltr.drag{cursor:grabbing;filter:drop-shadow(0 8px 20px rgba(255,217,122,.6)) drop-shadow(0 0 34px rgba(255,126,179,.6));}
   .ltr.hit{animation:pop .36s ease;}
   @keyframes sheen{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
-  @keyframes pop{0%{filter:drop-shadow(0 0 30px #fff) brightness(1.7)}100%{}}
+  @keyframes pop{0%{filter:drop-shadow(0 0 28px #fff) brightness(1.7)}100%{}}
 
   #reveal{position:absolute;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 5vh);transform:translateX(-50%);
     width:min(94vw,900px);text-align:center;z-index:4;pointer-events:none;}
@@ -82,111 +83,102 @@
   const PHRASE="Damn girl! You got an incredible booty! You should probably let Steve smack it around!";
   const words=PHRASE.split(" ");
   const isTouch=matchMedia('(pointer:coarse)').matches || 'ontouchstart' in window;
+  let interacted=false, laidOut=false;
 
-  // dynamic viewport height (fixes mobile URL-bar 100vh)
-  function setVH(){const h=(window.visualViewport?window.visualViewport.height:window.innerHeight);document.documentElement.style.setProperty('--vh',h+'px');return h;}
+  function setVH(){const h=(window.visualViewport?window.visualViewport.height:window.innerHeight);document.documentElement.style.setProperty('--vh',h+'px');}
   function vp(){return {w:(window.visualViewport?window.visualViewport.width:innerWidth), h:(window.visualViewport?window.visualViewport.height:innerHeight)};}
 
-  // ambient sparkles (fewer on phones)
   (function(){const n=isTouch?16:34;for(let i=0;i<n;i++){const s=document.createElement('div');s.className='amb';const sz=Math.random()*3+1.2;s.style.width=s.style.height=sz+'px';s.style.left=(Math.random()*100)+'vw';s.style.top=(100+Math.random()*30)+'%';s.style.animationDuration=(10+Math.random()*16)+'s';s.style.animationDelay=(-Math.random()*20)+'s';s.style.opacity=(.2+Math.random()*.5);stage.appendChild(s);}})();
 
-  // reveal words
   const wordsEl=document.getElementById('words');
   const wEls=words.map(w=>{const e=document.createElement('span');e.className='w';e.textContent=w;wordsEl.appendChild(e);wordsEl.appendChild(document.createTextNode(' '));return e;});
   const fill=document.getElementById('fill'), sub=document.getElementById('sub'), hint=document.getElementById('hint');
-  let revealed=0, interactions=0;
-  const PER_WORD=2, NEED=words.length*2;
-  function bump(){
-    interactions++;
-    fill.style.width=(Math.min(1,interactions/NEED)*100).toFixed(1)+'%';
-    const target=Math.min(words.length,Math.floor(interactions/PER_WORD));
-    while(revealed<target){const el=wEls[revealed];el.classList.add('on','flash');setTimeout(()=>el.classList.remove('flash'),800);revealed++;const r=revealPoint();burstAt(r.x,r.y,isTouch?10:14);}
-    if(interactions>=2)hint.style.opacity='0';
-    if(revealed>=words.length && !stage.classList.contains('done')){stage.classList.add('done');sub.textContent='♡  there it is  ♡';sub.style.color='rgba(255,217,122,.85)';finale();}
-  }
-  function revealPoint(){const r=wordsEl.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2};}
+  let revealed=0, interactions=0; const PER_WORD=2, NEED=words.length*2;
+  function bump(){interactions++;fill.style.width=(Math.min(1,interactions/NEED)*100).toFixed(1)+'%';const target=Math.min(words.length,Math.floor(interactions/PER_WORD));while(revealed<target){const el=wEls[revealed];el.classList.add('on','flash');setTimeout(()=>el.classList.remove('flash'),800);revealed++;const r=wordsEl.getBoundingClientRect();burstAt(r.left+r.width/2,r.top+r.height/2,isTouch?10:14);}if(interactions>=2)hint.style.opacity='0';if(revealed>=words.length&&!stage.classList.contains('done')){stage.classList.add('done');sub.textContent='♡  there it is  ♡';sub.style.color='rgba(255,217,122,.85)';finale();}}
 
-  // letters
   const letters=[]; const chars=NAME.split("");
-  // build DOM once, tag word index
-  (function build(){let wi=0;chars.forEach(c=>{if(c===' '){wi++;return;}const e=document.createElement('div');e.className='ltr';e.textContent=c;stage.appendChild(e);const L={char:c,el:e,word:wi,x:undefined,y:undefined,vx:0,vy:0};letters.push(L);attachDrag(L);});})();
+  (function build(){let wi=0;chars.forEach(c=>{if(c===' '){wi++;return;}const e=document.createElement('div');e.className='ltr';e.textContent=c;stage.appendChild(e);const L={char:c,el:e,word:wi,x:undefined,y:undefined,vx:0,vy:0,fs:40,w:20,half:14};letters.push(L);attachDrag(L);});})();
 
-  // measurement-based, wrapping layout — fits any screen
-  function layout(){
+  // measurement-based, wrapping layout with real (non-overlapping) spacing
+  function layout(reset){
     const {w,h}=vp();
-    const maxRowW=w*0.92;
-    // choose font size that fits the widest word, then decide 1 or 2 rows
-    let fs=Math.min(w*0.17, h*0.22, 150); fs=Math.max(30,fs);
-    let wordW=[], lw=[];
-    for(let pass=0; pass<9; pass++){
+    const maxRowW=w*0.9;
+    // pick a font size that fits the widest word with real spacing
+    let fs=Math.min(w*0.16, h*0.2, 140); fs=Math.max(26,fs);
+    const GAP=0.14;                 // fraction of fs added as a gap between letters (keeps the script legible)
+    let lw=[], wordW=[0,0];
+    for(let pass=0; pass<10; pass++){
       letters.forEach(L=>{L.el.style.setProperty('--fs',fs+'px');});
-      lw=letters.map(L=>L.el.getBoundingClientRect().width||fs*0.5);
-      wordW=[0,0]; letters.forEach((L,i)=>{wordW[L.word]+=lw[i]*0.9;});
+      lw=letters.map(L=>Math.max(fs*0.28,(L.el.getBoundingClientRect().width||fs*0.5)));
+      wordW=[0,0]; letters.forEach((L,i)=>{wordW[L.word]+= lw[i] + fs*GAP;});
       const widest=Math.max(wordW[0],wordW[1]);
-      if(widest<=maxRowW || fs<=30) break;
-      fs=Math.max(30, fs*(maxRowW/widest)*0.97);
+      if(widest<=maxRowW || fs<=26) break;
+      fs=Math.max(26, fs*(maxRowW/widest)*0.96);
     }
-    const spaceW=fs*0.34;
+    const spaceW=fs*0.5;
     const full=wordW[0]+spaceW+wordW[1];
-    const oneRow=full<=maxRowW;
+    const oneRow = full<=maxRowW;
     const rows = oneRow ? [[0,1]] : [[0],[1]];
-    const rowGap=fs*0.12, lineH=fs*0.9;
+    const lineH=fs*0.95, rowGap=fs*0.18;
     const totalH=rows.length*lineH + (rows.length-1)*rowGap;
-    // vertical: keep the name comfortably above the reveal block
-    let cy=h*(oneRow?0.40:0.37);
+    let cy=h*(oneRow?0.40:0.36);
     const topY=cy - totalH/2 + lineH/2;
     rows.forEach((row,ri)=>{
-      const rowW = row.reduce((a,wi,k)=> a + wordW[wi] + (k>0?spaceW:0), 0);
-      let x=(w-rowW)/2;
-      const y=topY + ri*(lineH+rowGap);
-      row.forEach((wi,k)=>{
-        if(k>0)x+=spaceW;
-        letters.forEach((L,i)=>{ if(L.word!==wi) return;
-          const adv=lw[i]*0.9;
-          L.fs=fs; L.w=lw[i]; L.half=Math.max(fs*0.3, lw[i]*0.42);
-          L.homeX=x+adv/2; L.homeY=y;
-          if(L.x===undefined){L.x=L.homeX;L.y=L.homeY;}
-          x+=adv;
+      const rowW=row.reduce((a,wi,k)=> a + wordW[wi] + (k>0?spaceW:0), 0);
+      let x=(w-rowW)/2; const y=topY+ri*(lineH+rowGap);
+      row.forEach((wi,k)=>{ if(k>0)x+=spaceW;
+        letters.forEach((L,i)=>{ if(L.word!==wi)return;
+          const cell=lw[i]+fs*GAP;
+          L.fs=fs; L.w=lw[i]; L.half=Math.min(lw[i]*0.4, cell*0.46);
+          L.homeX=x+cell/2; L.homeY=y;
+          if(reset||L.x===undefined){L.x=L.homeX;L.y=L.homeY;L.vx=0;L.vy=0;}
+          x+=cell;
         });
       });
     });
+    laidOut=true;
+    letters.forEach(L=>L.el.classList.add('ready'));
   }
 
-  // drag / fling (pointer events — work for touch + mouse)
   let active=null,px=0,py=0,lpx=0,lpy=0;
   function attachDrag(L){
-    L.el.addEventListener('pointerdown',ev=>{ev.preventDefault();active=L;L.el.classList.add('drag');try{L.el.setPointerCapture(ev.pointerId);}catch(e){}px=lpx=ev.clientX;py=lpy=ev.clientY;L.vx=L.vy=0;});
+    L.el.addEventListener('pointerdown',ev=>{ev.preventDefault();interacted=true;active=L;L.el.classList.add('drag');try{L.el.setPointerCapture(ev.pointerId);}catch(e){}px=lpx=ev.clientX;py=lpy=ev.clientY;L.vx=L.vy=0;});
     L.el.addEventListener('pointermove',ev=>{if(active!==L)return;ev.preventDefault();lpx=px;lpy=py;px=ev.clientX;py=ev.clientY;L.x=px;L.y=py;L.vx=px-lpx;L.vy=py-lpy;});
     const up=ev=>{if(active!==L)return;L.el.classList.remove('drag');active=null;const speed=Math.hypot(L.vx,L.vy);if(speed<4){const a=Math.random()*6.28,s=14+Math.random()*16;L.vx=Math.cos(a)*s;L.vy=Math.sin(a)*s;}else{L.vx*=1.6;L.vy*=1.6;}bump();};
     L.el.addEventListener('pointerup',up);L.el.addEventListener('pointercancel',up);
   }
 
-  // physics
   const K=0.012,DAMP=0.992,REST=0.86,WALLREST=0.9; let lastHit=0;
   function step(){
-    const {w,h}=vp();
-    for(const L of letters){ if(L===active)continue;
-      L.vx+=(L.homeX-L.x)*K; L.vy+=(L.homeY-L.y)*K; L.vx*=DAMP; L.vy*=DAMP; L.x+=L.vx; L.y+=L.vy;
-      const r=L.half;
-      if(L.x<r){L.x=r;L.vx=Math.abs(L.vx)*WALLREST;} if(L.x>w-r){L.x=w-r;L.vx=-Math.abs(L.vx)*WALLREST;}
-      if(L.y<r){L.y=r;L.vy=Math.abs(L.vy)*WALLREST;} if(L.y>h-r){L.y=h-r;L.vy=-Math.abs(L.vy)*WALLREST;}
-    }
-    for(let i=0;i<letters.length;i++)for(let j=i+1;j<letters.length;j++){
-      const A=letters[i],B=letters[j]; let dx=B.x-A.x,dy=B.y-A.y,d=Math.hypot(dx,dy); const min=A.half+B.half;
-      if(d>0&&d<min){ const nx=dx/d,ny=dy/d,ov=min-d; const aM=A!==active,bM=B!==active;
-        if(aM){A.x-=nx*ov*(bM?.5:1);A.y-=ny*ov*(bM?.5:1);} if(bM){B.x+=nx*ov*(aM?.5:1);B.y+=ny*ov*(aM?.5:1);}
-        const va=A.vx*nx+A.vy*ny,vb=B.vx*nx+B.vy*ny,diff=vb-va;
-        if(aM){A.vx+=nx*diff*REST;A.vy+=ny*diff*REST;} if(bM){B.vx-=nx*diff*REST;B.vy-=ny*diff*REST;}
-        const imp=Math.abs(diff);
-        if(imp>6){flashHit(A);flashHit(B);burstAt((A.x+B.x)/2,(A.y+B.y)/2,Math.min(isTouch?16:22,6+imp));const now=performance.now();if(now-lastHit>90){lastHit=now;if(imp>9)bump();}}
+    if(laidOut){
+      const {w,h}=vp();
+      if(!interacted){
+        // before any interaction: name sits perfectly still & legible at home
+        for(const L of letters){L.x=L.homeX;L.y=L.homeY;L.el.style.transform=`translate(${(L.x-L.w/2).toFixed(2)}px,${(L.y-L.fs*0.5).toFixed(2)}px)`;}
+      } else {
+        for(const L of letters){ if(L===active)continue;
+          L.vx+=(L.homeX-L.x)*K; L.vy+=(L.homeY-L.y)*K; L.vx*=DAMP; L.vy*=DAMP; L.x+=L.vx; L.y+=L.vy;
+          const r=L.half;
+          if(L.x<r){L.x=r;L.vx=Math.abs(L.vx)*WALLREST;} if(L.x>w-r){L.x=w-r;L.vx=-Math.abs(L.vx)*WALLREST;}
+          if(L.y<r){L.y=r;L.vy=Math.abs(L.vy)*WALLREST;} if(L.y>h-r){L.y=h-r;L.vy=-Math.abs(L.vy)*WALLREST;}
+        }
+        for(let i=0;i<letters.length;i++)for(let j=i+1;j<letters.length;j++){
+          const A=letters[i],B=letters[j]; let dx=B.x-A.x,dy=B.y-A.y,d=Math.hypot(dx,dy); const min=A.half+B.half;
+          if(d>0&&d<min){ const nx=dx/d,ny=dy/d,ov=min-d; const aM=A!==active,bM=B!==active;
+            if(aM){A.x-=nx*ov*(bM?.5:1);A.y-=ny*ov*(bM?.5:1);} if(bM){B.x+=nx*ov*(aM?.5:1);B.y+=ny*ov*(aM?.5:1);}
+            const va=A.vx*nx+A.vy*ny,vb=B.vx*nx+B.vy*ny,diff=vb-va;
+            if(aM){A.vx+=nx*diff*REST;A.vy+=ny*diff*REST;} if(bM){B.vx-=nx*diff*REST;B.vy-=ny*diff*REST;}
+            const imp=Math.abs(diff);
+            if(imp>6){flashHit(A);flashHit(B);burstAt((A.x+B.x)/2,(A.y+B.y)/2,Math.min(isTouch?16:22,6+imp));const now=performance.now();if(now-lastHit>90){lastHit=now;if(imp>9)bump();}}
+          }
+        }
+        for(const L of letters)L.el.style.transform=`translate(${(L.x-L.w/2).toFixed(2)}px,${(L.y-L.fs*0.5).toFixed(2)}px)`;
       }
     }
-    for(const L of letters)L.el.style.transform=`translate(${(L.x-L.w/2).toFixed(2)}px,${(L.y-L.fs*0.5).toFixed(2)}px)`;
     requestAnimationFrame(step);
   }
   function flashHit(L){L.el.classList.remove('hit');void L.el.offsetWidth;L.el.classList.add('hit');}
 
-  // particles
   const cv=document.getElementById('heart'),ctx=cv.getContext('2d'); let parts=[];
   function sizeCanvas(){const {w,h}=vp();const dpr=Math.min(devicePixelRatio||1,2);cv.width=w*dpr;cv.height=h*dpr;cv.style.width=w+'px';cv.style.height=h+'px';ctx.setTransform(dpr,0,0,dpr,0,0);}
   const COLORS=['#ffd97a','#ff7eb3','#a97bff','#67e8f9','#ffffff']; const CAP=isTouch?500:900;
@@ -195,14 +187,24 @@
 
   function finale(){let t=0;const {w,h}=vp();const iv=setInterval(()=>{burstAt(Math.random()*w,h*(0.22+Math.random()*0.4),isTouch?14:20);if(++t>14)clearInterval(iv);},110);letters.forEach(L=>{const a=Math.random()*6.28;L.vx+=Math.cos(a)*10;L.vy+=Math.sin(a)*10;});}
 
-  function boot(){setVH();sizeCanvas();layout();}
-  let rT;function onResize(){clearTimeout(rT);rT=setTimeout(()=>{setVH();sizeCanvas();const old=letters.map(L=>({x:L.x,y:L.y,vx:L.vx,vy:L.vy}));letters.forEach(L=>{L.x=undefined;});layout();letters.forEach((L,i)=>{if(old[i]&&old[i].x!==undefined){L.x=old[i].x;L.y=old[i].y;L.vx=old[i].vx;L.vy=old[i].vy;}});},160);}
+  let rT;function onResize(){clearTimeout(rT);rT=setTimeout(()=>{setVH();sizeCanvas();layout(!interacted);},160);}
   addEventListener('resize',onResize); addEventListener('orientationchange',onResize);
   if(window.visualViewport)window.visualViewport.addEventListener('resize',onResize);
   document.addEventListener('gesturestart',e=>e.preventDefault());
 
-  if(document.fonts&&document.fonts.ready){document.fonts.ready.then(boot);setTimeout(boot,500);setTimeout(boot,1200);}else boot();
-  requestAnimationFrame(step);requestAnimationFrame(drawParts);
+  // --- boot: only lay out AFTER the decorative font is actually loaded (so spacing is correct) ---
+  function doLayout(reset){setVH();sizeCanvas();layout(reset);}
+  function boot(){
+    doLayout(true);                                  // provisional (fallback metrics)
+    const fin=()=>doLayout(true);                    // final, with Great Vibes metrics
+    if(document.fonts&&document.fonts.load){
+      Promise.all([document.fonts.load('40px "Great Vibes"'),document.fonts.ready]).then(fin).catch(fin);
+    }
+    // extra safety re-layouts in case the font paints a touch late
+    setTimeout(fin,500); setTimeout(fin,1400);
+  }
+  boot();
+  requestAnimationFrame(step); requestAnimationFrame(drawParts);
 })();
 </script>
 </body>
